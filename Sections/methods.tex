@@ -1,5 +1,47 @@
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent non accumsan purus. Pellentesque vel dignissim nisi. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Cras maximus ex id efficitur molestie. Mauris nec magna eget purus placerat fringilla sagittis vitae enim. Praesent mauris metus, ullamcorper et fermentum vitae, pretium et magna. Nam vehicula tempus eros. In vel fringilla mi. Etiam accumsan elit eu est lobortis, a volutpat lectus varius.
+\begin{figure*}[h]
+  \centering
+  \begin{minipage}{\textwidth}
+    \centering
+    \begin{lstlisting}[]
+    BEGIN
+      // Load Pretrained Weights
+      vgg_model $\leftarrow$ load_model("VGG16", pretrained=True)
 
-In quis ipsum a neque efficitur dictum in in sem. Suspendisse potenti. Nullam a ante vitae orci ultrices condimentum sed ut velit. Sed dictum, lorem quis feugiat semper, ex metus sagittis libero, nec sagittis lorem metus pellentesque ex. Vestibulum justo felis, sollicitudin id aliquet sed, accumsan vitae ipsum. Aliquam varius libero nec turpis imperdiet, in sagittis dui convallis. Nullam sit amet est mi.
+      // Unfreeze all layers for training
+      FOR layer IN vgg_model.parameters()
+        layer.requires_grad $\leftarrow$ True
+      END FOR
 
-Quisque diam sem, pretium a consectetur ac, varius eu enim. Pellentesque quam enim, pellentesque eget faucibus non, faucibus eget justo. Nam commodo faucibus gravida. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Suspendisse dignissim magna eget tellus efficitur, id ornare est bibendum. Curabitur posuere suscipit hendrerit. Ut vel dignissim erat. Ut id ex vulputate arcu gravida interdum. Vivamus ut turpis nec nunc tincidunt fringilla vitae id est. Proin fringilla risus nec dui ornare commodo. Vestibulum lobortis augue nisi, sit amet porttitor risus hendrerit ut. Morbi dictum imperdiet lacus, eget dapibus justo. Etiam risus nisl, maximus ut dui ac, aliquam auctor ante. Proin id mauris tristique, euismod lorem ut, pulvinar nibh. Praesent vel semper leo.
+      // Modify classifier structure
+      vgg_model.classifier[6] $\leftarrow$ Sequential(
+        Linear(4096, 1024),
+        ReLU(),
+        Dropout(0.5),
+        Linear(1024, 1),
+        Sigmoid()
+      )
+
+      // Set device
+      device $\leftarrow$ if GPU_available() then "cuda:0" else "cpu"
+      vgg_model.to(device)
+
+      // Loss function
+      criterion $\leftarrow$ Cross_Entropy_Loss()
+
+      // Use Adam Optimizer
+      optimizer $\leftarrow$ Adam(vgg_model.classifier.parameters(), lr=0.001)
+    END
+    \end{lstlisting}
+    \caption{Pseudocode for adapting a pre-trained VGG-16 model for Diabetic Retinopathy classification.}
+    \label{fig:vgg16}
+  \end{minipage}%
+\end{figure*}
+
+The dataset we use is the Kaggle Diabetic Retinopathy Detection Dataset \cite{emma_dugas_diabetic_2015}. The dataset consists of over 35,000 high resolution retina images captured with a fundus camera \cite{emma_dugas_diabetic_2015, mateen_fundus_2019}. All of the images are labeled by clinicians into 5 numbered classes corresponding to severity. The data is structured into training and testing files as well as a file delineating training and testing labels.
+
+We have constructed a classifier employing the VGG-16 architecture, which is a convolutional neural network with 16 layers \cite{simonyan_very_2015}. As outlined in \autoref{fig:vgg16}, our approach starts with loading the VGG-16 model pre-equipped with trained weights. Subsequently, we enable training on all layers by unfreezing their weights. The VGG architecture utilizes 3x3 convolutional filters and max-pooling to minimize the model's complexity and the number of parameters needed. The classifier's configuration is altered to include a linear layer, a ReLU activation function, a dropout rate of 0.5 to prevent overfitting, another linear layer, and a sigmoid activation to produce a probability output. The model is trained using cross-entropy loss and optimized with the Adam optimizer with a learning rate of 0.001  \cite{zhang_generalized_2018, kingma_adam_2017}.
+
+Following the training and optimization of the VGG-16 model for diabetic retinopathy detection, we employ Gradient-weighted Class Activation Mapping (Grad-CAM) to enhance the interpretability of the model’s predictions \cite{selvaraju_grad-cam_2017}. Grad-CAM is a visualization technique that highlights the regions in the input image that are important for predictions from convolutional neural networks. This method uses the gradients of the output of the final convolutional layer to produce a coarse localization map highlighting the important regions in the image for predicting the concept.
+
+To implement Grad-CAM, we first import the best-performing VGG-16 model trained on the diabetic retinopathy dataset. We then focus on the activations and gradients of the final convolutional layer, as this layer captures the most complex features in the image that are crucial for making the final decision. By computing the gradient of the output category with respect to the feature maps of the final convolutional layer, and then pooling these gradients over the spatial dimensions, we create a weighted map of the important features. This weighted feature map is then used to create a heatmap by performing a weighted combination of the feature maps, followed by a rectified linear transformation. Finally, this heatmap is superimposed on the original image to visually represent the areas most significant for the model’s classification decision, providing insights into what the model is considering important in diagnosing diabetic retinopathy. This method not only aids in verifying the model's focus areas but also enhances trust and understanding in its diagnostic decisions, making it a powerful tool for medical imaging analysis.
+
